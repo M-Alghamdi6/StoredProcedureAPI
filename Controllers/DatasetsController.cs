@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using StoredProcedureAPI.Repository;
 using StoredProcedureAPI.Models;
-using Microsoft.Data.SqlClient;
-using System.Data;
-using System.Text.Json;
+using StoredProcedureAPI.DTOs;
+using System.Net;
 
 namespace StoredProcedureAPI.Controllers
 {
@@ -12,234 +11,241 @@ namespace StoredProcedureAPI.Controllers
     public class DatasetsController : ControllerBase
     {
         private readonly IDatasetRepository _repo;
-        private readonly IConfiguration _config;
 
-        public DatasetsController(IDatasetRepository repo, IConfiguration config)
+        public DatasetsController(IDatasetRepository repo)
         {
             _repo = repo;
-            _config = config;
         }
 
-        // POST api/datasets/procedure-execute
-        // Executes the procedure, logs execution + columns, then creates a dataset.
-        [HttpPost("procedure-execute")]
-        public async Task<ActionResult<Dataset>> ExecuteProcedureAndCreateDataset(
-            [FromBody] ExecuteAndCreateDatasetRequest request,
+        // POST api/datasets (unified create)
+        [HttpPost]
+        public async Task<ActionResult<JSONResponseDTO<Dataset>>> CreateUnified(
+            [FromBody] CreateDatasetUnifiedRequest request,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(request.Schema) || string.IsNullOrWhiteSpace(request.Procedure))
-                return BadRequest("Schema and Procedure are required.");
+            if (string.IsNullOrWhiteSpace(request.Title))
+                return BadRequest(WrapError<Dataset>("Title is required.", HttpStatusCode.BadRequest));
 
-            string connectionString = _config.GetConnectionString("DefaultConnection")
-                ?? throw new InvalidOperationException("Missing connection string 'DefaultConnection'.");
+            if (request.SourceType is < 1 or > 3)
+                return BadRequest(WrapError<Dataset>("SourceType must be 1=Builder, 2=Inline, 3=Procedure.", HttpStatusCode.BadRequest));
 
-            await using SqlConnection conn = new(connectionString);
-            await conn.OpenAsync(ct);
-            await using var dbTx = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
-            var sqlTx = (SqlTransaction)dbTx;
+            if (request.Data is null)
+                return BadRequest(WrapError<Dataset>("Data object is required.", HttpStatusCode.BadRequest));
 
             try
             {
-                string fullyQualified = $"{request.Schema}.{request.Procedure}";
-                using SqlCommand cmd = new(fullyQualified, conn, sqlTx)
+                int datasetId;
+                switch (request.SourceType)
                 {
-                    CommandType = CommandType.StoredProcedure,
-                    CommandTimeout = 30
-                };
+                    case 1: // Builder
+                        if (request.Data.Builder is null)
+                            return BadRequest(WrapError<Dataset>("Data.Builder is required for SourceType=1.", HttpStatusCode.BadRequest));
+                        if (request.Data.Builder.BuilderId <= 0)
+                            return BadRequest(WrapError<Dataset>("BuilderId must be > 0.", HttpStatusCode.BadRequest));
 
-                // Normalize and add parameters
-                if (request.Parameters is not null)
-                {
-                    foreach (var kv in request.Parameters)
-                    {
-                        object? converted = NormalizeParameterValue(kv.Value);
-                        cmd.Parameters.AddWithValue("@" + kv.Key, converted ?? DBNull.Value);
-                    }
+                        datasetId = await _repo.CreateFromBuilderAsync(
+                            request.Data.Builder.BuilderId,
+                            request.Title,
+                            request.Description,
+                            ct);
+
+                        if (request.Data.Builder.Columns?.Count > 0)
+                        {
+                            var tuples = request.Data.Builder.Columns.Select(c => (c.ColumnName, c.DataType));
+                            await _repo.ReplaceColumnsAsync(datasetId, tuples, ct);
+                        }
+                        break;
+
+                    case 2: // Inline
+                        if (request.Data.Inline is null)
+                            return BadRequest(WrapError<Dataset>("Data.Inline is required for SourceType=2.", HttpStatusCode.BadRequest));
+                        if (request.Data.Inline.InlineId <= 0)
+                            return BadRequest(WrapError<Dataset>("InlineId must be > 0.", HttpStatusCode.BadRequest));
+
+                        datasetId = await _repo.CreateFromInlineAsync(
+                            request.Data.Inline.InlineId,
+                            request.Title,
+                            request.Description,
+                            ct);
+
+                        if (request.Data.Inline.Columns?.Count > 0)
+                        {
+                            var tuples = request.Data.Inline.Columns.Select(c => (c.ColumnName, c.DataType));
+                            await _repo.ReplaceColumnsAsync(datasetId, tuples, ct);
+                        }
+                        break;
+
+                    case 3: // Procedure
+                        if (request.Data.Procedure is null)
+                            return BadRequest(WrapError<Dataset>("Data.Procedure is required for SourceType=3.", HttpStatusCode.BadRequest));
+                        if (request.Data.Procedure.ProcedureExecutionId <= 0)
+                            return BadRequest(WrapError<Dataset>("ProcedureExecutionId must be > 0.", HttpStatusCode.BadRequest));
+
+                        datasetId = await _repo.CreateFromProcedureExecutionAsync(
+                            request.Data.Procedure.ProcedureExecutionId,
+                            request.Title,
+                            request.Description,
+                            ct);
+                        break;
+
+                    default:
+                        return BadRequest(WrapError<Dataset>("Unsupported SourceType.", HttpStatusCode.BadRequest));
                 }
-
-                using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SchemaOnly, ct);
-                var schema = reader.GetSchemaTable();
-                if (schema == null || schema.Rows.Count == 0)
-                    throw new InvalidOperationException("Procedure returned no columns.");
-
-                const string insertExecSql = @"
-INSERT INTO dbo.ProcedureExecutionLog (ProcedureName, ExecutedAtUtc)
-VALUES (@ProcedureName, SYSUTCDATETIME());
-SELECT CAST(SCOPE_IDENTITY() AS INT);";
-
-                int executionId;
-                using (SqlCommand execCmd = new(insertExecSql, conn, sqlTx))
-                {
-                    execCmd.Parameters.AddWithValue("@ProcedureName", fullyQualified);
-                    executionId = Convert.ToInt32(await execCmd.ExecuteScalarAsync(ct));
-                }
-
-                const string insertColSql = @"
-INSERT INTO dbo.ProcedureExecutionColumn
-(ExecutionId, ColumnOrdinal, ColumnName, DataType)
-VALUES (@ExecutionId, @ColumnOrdinal, @ColumnName, @DataType);";
-
-                int ordinal = 0;
-                foreach (DataRow row in schema.Rows)
-                {
-                    string colName = row["ColumnName"]?.ToString() ?? $"Column{ordinal}";
-                    string dataType =
-                        row["DataType"] is Type t
-                            ? t.Name
-                            : (row.Table.Columns.Contains("DataTypeName") ? row["DataTypeName"]?.ToString() : "Unknown") ?? "Unknown";
-
-                    using SqlCommand colCmd = new(insertColSql, conn, sqlTx);
-                    colCmd.Parameters.AddWithValue("@ExecutionId", executionId);
-                    colCmd.Parameters.AddWithValue("@ColumnOrdinal", ordinal);
-                    colCmd.Parameters.AddWithValue("@ColumnName", colName);
-                    colCmd.Parameters.AddWithValue("@DataType", dataType);
-                    await colCmd.ExecuteNonQueryAsync(ct);
-                    ordinal++;
-                }
-
-                await sqlTx.CommitAsync(ct);
-
-                int datasetId = await _repo.CreateFromProcedureExecutionAsync(
-                    executionId,
-                    request.Title,
-                    request.Description,
-                    ct);
 
                 var ds = await _repo.GetDatasetAsync(datasetId, ct);
-                return CreatedAtAction(nameof(Get), new { id = datasetId }, ds);
+                return CreatedAtAction(nameof(Get),
+                    new { id = datasetId },
+                    new JSONResponseDTO<Dataset>
+                    {
+                        StatusCode = HttpStatusCode.Created,
+                        Id = datasetId,
+                        Data = ds
+                    });
+            }
+            catch (InvalidOperationException ex)
+            {
+                var status = ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                    ? HttpStatusCode.NotFound
+                    : HttpStatusCode.BadRequest;
+                return StatusCode((int)status, WrapError<Dataset>(ex.Message, status));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(WrapError<Dataset>(ex.Message, HttpStatusCode.BadRequest));
             }
             catch (Exception ex)
             {
-                try { await sqlTx.RollbackAsync(ct); } catch { }
-                return StatusCode(500, $"Failed to execute procedure: {ex.Message}");
+                return StatusCode(500, WrapError<Dataset>("Failed to create dataset.", HttpStatusCode.InternalServerError, ex.Message));
             }
         }
 
         // GET api/datasets/{id}
         [HttpGet("{id:int}")]
-        public async Task<ActionResult<Dataset>> Get(int id, CancellationToken ct)
+        public async Task<ActionResult<JSONResponseDTO<Dataset>>> Get(int id, CancellationToken ct)
         {
             var ds = await _repo.GetDatasetAsync(id, ct);
-            if (ds is null) return NotFound();
-            return Ok(ds);
+            if (ds is null)
+                return NotFound(WrapError<Dataset>($"Dataset {id} not found.", HttpStatusCode.NotFound));
+
+            return Ok(new JSONResponseDTO<Dataset>
+            {
+                StatusCode = HttpStatusCode.OK,
+                Id = ds.DataSetId,
+                Data = ds
+            });
         }
 
         // GET api/datasets/recent
         [HttpGet("recent")]
-        public async Task<ActionResult<IEnumerable<Dataset>>> GetRecent([FromQuery] int top = 50, CancellationToken ct = default)
+        public async Task<ActionResult<JSONResponseDTO<IEnumerable<Dataset>>>> GetRecent(
+            [FromQuery] int top = 50,
+            CancellationToken ct = default)
         {
             if (top <= 0) top = 50;
             var list = await _repo.GetRecentAsync(top, ct);
-            return Ok(list);
+            return Ok(new JSONResponseDTO<IEnumerable<Dataset>>
+            {
+                StatusCode = HttpStatusCode.OK,
+                Data = list
+            });
         }
 
         // GET api/datasets/source-flags
         [HttpGet("source-flags")]
-        public async Task<ActionResult<IEnumerable<SourceFlag>>> GetSourceFlags(CancellationToken ct)
+        public async Task<ActionResult<JSONResponseDTO<IEnumerable<SourceFlag>>>> GetSourceFlags(CancellationToken ct)
         {
             var flags = await _repo.GetSourceFlagsAsync(ct);
-            return Ok(flags);
-        }
-
-        // POST api/datasets/procedure
-        [HttpPost("procedure")]
-        public async Task<ActionResult> CreateFromProcedure([FromBody] CreateFromProcedureRequest request, CancellationToken ct)
-        {
-            int id = await _repo.CreateFromProcedureExecutionAsync(request.ProcedureExecutionId, request.Title, request.Description, ct);
-            var ds = await _repo.GetDatasetAsync(id, ct);
-            return CreatedAtAction(nameof(Get), new { id }, ds);
-        }
-
-        // POST api/datasets/builder
-        [HttpPost("builder")]
-        public async Task<ActionResult> CreateFromBuilder([FromBody] CreateFromBuilderRequest request, CancellationToken ct)
-        {
-            int id = await _repo.CreateFromBuilderAsync(request.BuilderId, request.Title, request.Description, ct);
-            var ds = await _repo.GetDatasetAsync(id, ct);
-            return CreatedAtAction(nameof(Get), new { id }, ds);
-        }
-
-        // POST api/datasets/inline
-        [HttpPost("inline")]
-        public async Task<ActionResult> CreateFromInline([FromBody] CreateFromInlineRequest request, CancellationToken ct)
-        {
-            int id = await _repo.CreateFromInlineAsync(request.InlineId, request.Title, request.Description, ct);
-            var ds = await _repo.GetDatasetAsync(id, ct);
-            return CreatedAtAction(nameof(Get), new { id }, ds);
+            return Ok(new JSONResponseDTO<IEnumerable<SourceFlag>>
+            {
+                StatusCode = HttpStatusCode.OK,
+                Data = flags
+            });
         }
 
         // PUT api/datasets/{id}
         [HttpPut("{id:int}")]
-        public async Task<ActionResult> Update(int id, [FromBody] UpdateDatasetRequest request, CancellationToken ct)
+        public async Task<ActionResult<JSONResponseDTO<Dataset>>> Update(
+            int id,
+            [FromBody] UpdateDatasetRequest request,
+            CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(request.Title))
+                return BadRequest(WrapError<Dataset>("Title is required.", HttpStatusCode.BadRequest));
+
             bool ok = await _repo.UpdateDatasetAsync(id, request.Title, request.Description, ct);
-            if (!ok) return NotFound();
+            if (!ok)
+                return NotFound(WrapError<Dataset>($"Dataset {id} not found.", HttpStatusCode.NotFound));
+
             var ds = await _repo.GetDatasetAsync(id, ct);
-            return Ok(ds);
+            return Ok(new JSONResponseDTO<Dataset>
+            {
+                StatusCode = HttpStatusCode.OK,
+                Id = id,
+                Data = ds
+            });
         }
 
         // PUT api/datasets/{id}/columns
         [HttpPut("{id:int}/columns")]
-        public async Task<ActionResult> ReplaceColumns(int id, [FromBody] ReplaceColumnsRequest request, CancellationToken ct)
+        public async Task<ActionResult<JSONResponseDTO<Dataset>>> ReplaceColumns(
+            int id,
+            [FromBody] ReplaceColumnsRequest request,
+            CancellationToken ct)
         {
-            var tupleList = request.Columns.Select(c => (c.ColumnName, c.DataType));
-            bool ok = await _repo.ReplaceColumnsAsync(id, tupleList, ct);
-            if (!ok) return NotFound();
+            if (request.Columns == null || request.Columns.Count == 0)
+                return BadRequest(WrapError<Dataset>("Columns collection is required and cannot be empty.", HttpStatusCode.BadRequest));
+
+            var tuples = request.Columns.Select(c => (c.ColumnName, c.DataType));
+            bool ok = await _repo.ReplaceColumnsAsync(id, tuples, ct);
+            if (!ok)
+                return NotFound(WrapError<Dataset>($"Dataset {id} not found.", HttpStatusCode.NotFound));
+
             var ds = await _repo.GetDatasetAsync(id, ct);
-            return Ok(ds);
-        }
-
-        // Helper to convert JsonElement -> CLR types
-        private static object? NormalizeParameterValue(object? value)
-        {
-            if (value is null) return null;
-
-            if (value is JsonElement je)
+            return Ok(new JSONResponseDTO<Dataset>
             {
-                if (je.ValueKind == JsonValueKind.Null) return null;
-                switch (je.ValueKind)
-                {
-                    case JsonValueKind.String:
-                        var s = je.GetString();
-                        // Try DateTime / Guid parsing
-                        if (DateTime.TryParse(s, out var dt)) return dt;
-                        if (Guid.TryParse(s, out var g)) return g;
-                        return s;
-                    case JsonValueKind.Number:
-                        if (je.TryGetInt32(out var i32)) return i32;
-                        if (je.TryGetInt64(out var i64)) return i64;
-                        if (je.TryGetDecimal(out var dec)) return dec;
-                        if (je.TryGetDouble(out var dbl)) return dbl;
-                        return je.GetRawText(); // fallback
-                    case JsonValueKind.True:
-                    case JsonValueKind.False:
-                        return je.GetBoolean();
-                    case JsonValueKind.Array:
-                    case JsonValueKind.Object:
-                        // Pass JSON text as NVARCHAR
-                        return je.GetRawText();
-                    default:
-                        return je.GetRawText();
-                }
-            }
-
-            return value; // Already a CLR type (int, string, bool, etc.)
+                StatusCode = HttpStatusCode.OK,
+                Id = id,
+                Data = ds
+            });
         }
+
+        private static JSONResponseDTO<T> WrapError<T>(string message, HttpStatusCode code, string? detail = null) =>
+            new()
+            {
+                StatusCode = code,
+                Message = detail is null ? message : $"{message} | {detail}"
+            };
     }
 
-    // Request DTOs
-    public record CreateFromProcedureRequest(int ProcedureExecutionId, string Title, string? Description);
-    public record CreateFromBuilderRequest(int BuilderId, string Title, string? Description);
-    public record CreateFromInlineRequest(int InlineId, string Title, string? Description);
-    public record UpdateDatasetRequest(string Title, string? Description);
-    public record ReplaceColumnsRequest(ICollection<ReplaceColumnItem> Columns);
-    public record ReplaceColumnItem(string ColumnName, string DataType);
-
-    // Composite request DTO
-    public record ExecuteAndCreateDatasetRequest(
-        string Schema,
-        string Procedure,
-        Dictionary<string, object?>? Parameters,
+    // Unified create request
+    public record CreateDatasetUnifiedRequest(
+        int SourceType,          // 1=Builder, 2=Inline, 3=Procedure
         string Title,
-        string? Description);
+        string? Description,
+        DatasetSourceData Data
+    );
+
+    public record DatasetSourceData(
+        BuilderSourceDto? Builder,
+        InlineSourceDto? Inline,
+        ProcedureSourceDto? Procedure
+    );
+
+    public record BuilderSourceDto(
+        int BuilderId,
+        ICollection<ColumnSpec>? Columns
+    );
+
+    public record InlineSourceDto(
+        int InlineId,
+        ICollection<ColumnSpec>? Columns
+    );
+
+    public record ProcedureSourceDto(int ProcedureExecutionId);
+
+    public record ColumnSpec(string ColumnName, string DataType);
+
+    public record UpdateDatasetRequest(string Title, string? Description);
+
+    public record ReplaceColumnsRequest(ICollection<ColumnSpec> Columns);
 }

@@ -4,10 +4,8 @@ using Microsoft.Extensions.Configuration;
 using System.Data;
 using StoredProcedureAPI.Models;
 
-
 namespace StoredProcedureAPI.Repository
 {
-
     public class DatasetRepository : IDatasetRepository
     {
         private readonly string _connectionString;
@@ -20,7 +18,7 @@ namespace StoredProcedureAPI.Repository
 
         public DatasetRepository(IConfiguration config, ILogger<DatasetRepository>? logger = null)
         {
-         _connectionString = config.GetConnectionString("DefaultConnection")
+            _connectionString = config.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Missing connection string 'DefaultConnection'.");
             _logger = logger;
         }
@@ -31,18 +29,16 @@ namespace StoredProcedureAPI.Repository
 
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync(ct);
-            await using var tx = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
             try
             {
-                // Validate ProcedureExecutionLog existence
                 const string checkExecSql = "SELECT 1 FROM dbo.ProcedureExecutionLog WHERE Id = @Id;";
                 var exists = await conn.ExecuteScalarAsync<int?>(
                     new CommandDefinition(checkExecSql, new { Id = procedureExecutionId }, tx, cancellationToken: ct));
                 if (exists is null)
                     throw new InvalidOperationException($"ProcedureExecutionLog {procedureExecutionId} not found.");
 
-                // Load execution columns
                 const string loadColsSql = @"
 SELECT ColumnOrdinal, ColumnName, DataType
 FROM dbo.ProcedureExecutionColumn
@@ -54,7 +50,6 @@ ORDER BY ColumnOrdinal;";
                 if (execColumns.Count == 0)
                     throw new InvalidOperationException("Execution has no column metadata.");
 
-                // Insert dataset (ProcedureExecutionId only)
                 const string insertDatasetSql = @"
 INSERT INTO dbo.Datasets
 (DataSetTitle, Description, SourceType, BuilderId, InlineId, ProcedureExecutionId)
@@ -70,7 +65,6 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);";
                         ProcExecId = procedureExecutionId
                     }, tx, cancellationToken: ct));
 
-                // Insert columns
                 const string insertColSql = @"
 INSERT INTO dbo.DatasetColumns
 (DataSetId, ColumnName, DataType, ColumnOrder)
@@ -105,11 +99,10 @@ VALUES (@DataSetId, @ColumnName, @DataType, @ColumnOrder);";
 
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync(ct);
-            await using var tx = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
             try
             {
-                // Validate QueryBuilderData existence
                 const string checkBuilderSql = "SELECT 1 FROM dbo.QueryBuilderData WHERE Id = @Id;";
                 var exists = await conn.ExecuteScalarAsync<int?>(
                     new CommandDefinition(checkBuilderSql, new { Id = builderId }, tx, cancellationToken: ct));
@@ -148,11 +141,10 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync(ct);
-            await using var tx = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
             try
             {
-                // Validate InLineQueriesData existence
                 const string checkInlineSql = "SELECT 1 FROM dbo.InLineQueriesData WHERE Id = @Id;";
                 var exists = await conn.ExecuteScalarAsync<int?>(
                     new CommandDefinition(checkInlineSql, new { Id = inlineId }, tx, cancellationToken: ct));
@@ -182,6 +174,154 @@ SELECT CAST(SCOPE_IDENTITY() AS INT);";
                 _logger?.LogError(ex, "CreateFromInlineAsync failed. InlineId={Id}", inlineId);
                 await tx.RollbackAsync(ct);
                 throw;
+            }
+        }
+
+        public async Task<int> CreateUnifiedAsync(
+            int sourceType,
+            string title,
+            string? description,
+            int? builderId,
+            int? inlineId,
+            int? procedureExecutionId,
+            IEnumerable<(string ColumnName, string DataType)>? initialColumns,
+            CancellationToken ct = default)
+        {
+            ValidateTitle(title);
+
+            await using var conn = new SqlConnection(_connectionString);
+            await conn.OpenAsync(ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+
+            try
+            {
+                int datasetId;
+
+                switch (sourceType)
+                {
+                    case SourceTypeBuilder:
+                        if (builderId is null || builderId <= 0)
+                            throw new ArgumentException("BuilderId is required for builder source.", nameof(builderId));
+
+                        const string checkBuilderSql = "SELECT 1 FROM dbo.QueryBuilderData WHERE Id = @Id;";
+                        var builderExists = await conn.ExecuteScalarAsync<int?>(
+                            new CommandDefinition(checkBuilderSql, new { Id = builderId }, tx, cancellationToken: ct));
+                        if (builderExists is null)
+                            throw new InvalidOperationException($"QueryBuilderData {builderId} not found.");
+
+                        datasetId = await InsertDatasetAsync(conn, tx, title, description, SourceTypeBuilder, builderId, null, null, ct);
+
+                        if (initialColumns != null)
+                            await InsertColumnsAsync(conn, tx, datasetId, initialColumns, ct);
+                        break;
+
+                    case SourceTypeInline:
+                        if (inlineId is null || inlineId <= 0)
+                            throw new ArgumentException("InlineId is required for inline source.", nameof(inlineId));
+
+                        const string checkInlineSql = "SELECT 1 FROM dbo.InLineQueriesData WHERE Id = @Id;";
+                        var inlineExists = await conn.ExecuteScalarAsync<int?>(
+                            new CommandDefinition(checkInlineSql, new { Id = inlineId }, tx, cancellationToken: ct));
+                        if (inlineExists is null)
+                            throw new InvalidOperationException($"InLineQueriesData {inlineId} not found.");
+
+                        datasetId = await InsertDatasetAsync(conn, tx, title, description, SourceTypeInline, null, inlineId, null, ct);
+
+                        if (initialColumns != null)
+                            await InsertColumnsAsync(conn, tx, datasetId, initialColumns, ct);
+                        break;
+
+                    case SourceTypeProcedure:
+                        if (procedureExecutionId is null || procedureExecutionId <= 0)
+                            throw new ArgumentException("ProcedureExecutionId is required for procedure source.", nameof(procedureExecutionId));
+
+                        const string checkExecSql = "SELECT 1 FROM dbo.ProcedureExecutionLog WHERE Id = @Id;";
+                        var execExists = await conn.ExecuteScalarAsync<int?>(
+                            new CommandDefinition(checkExecSql, new { Id = procedureExecutionId }, tx, cancellationToken: ct));
+                        if (execExists is null)
+                            throw new InvalidOperationException($"ProcedureExecutionLog {procedureExecutionId} not found.");
+
+                        const string loadColsSql = @"
+SELECT ColumnOrdinal, ColumnName, DataType
+FROM dbo.ProcedureExecutionColumn
+WHERE ExecutionId = @ExecId
+ORDER BY ColumnOrdinal;";
+                        var execColumns = (await conn.QueryAsync(
+                            new CommandDefinition(loadColsSql, new { ExecId = procedureExecutionId }, tx, cancellationToken: ct))).ToList();
+                        if (execColumns.Count == 0)
+                            throw new InvalidOperationException("Execution has no column metadata.");
+
+                        datasetId = await InsertDatasetAsync(conn, tx, title, description, SourceTypeProcedure, null, null, procedureExecutionId, ct);
+
+                        var mapped = execColumns.Select(c => (ColumnName: (string)c.ColumnName, DataType: (string)c.DataType));
+                        await InsertColumnsAsync(conn, tx, datasetId, mapped, ct);
+                        break;
+
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(sourceType), "Unknown source type.");
+                }
+
+                await tx.CommitAsync(ct);
+                return datasetId;
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        }
+
+        private async Task<int> InsertDatasetAsync(
+            SqlConnection conn,
+            SqlTransaction tx,
+            string title,
+            string? description,
+            int sourceType,
+            int? builderId,
+            int? inlineId,
+            int? procedureExecutionId,
+            CancellationToken ct)
+        {
+            const string sql = @"
+INSERT INTO dbo.Datasets
+(DataSetTitle, Description, SourceType, BuilderId, InlineId, ProcedureExecutionId)
+VALUES (@Title, @Desc, @SourceType, @BuilderId, @InlineId, @ProcExecId);
+SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            return await conn.ExecuteScalarAsync<int>(
+                new CommandDefinition(sql, new
+                {
+                    Title = title,
+                    Desc = description,
+                    SourceType = sourceType,
+                    BuilderId = builderId,
+                    InlineId = inlineId,
+                    ProcExecId = procedureExecutionId
+                }, tx, cancellationToken: ct));
+        }
+
+        private async Task InsertColumnsAsync(
+            SqlConnection conn,
+            SqlTransaction tx,
+            int datasetId,
+            IEnumerable<(string ColumnName, string DataType)> columns,
+            CancellationToken ct)
+        {
+            const string insertColSql = @"
+INSERT INTO dbo.DatasetColumns
+(DataSetId, ColumnName, DataType, ColumnOrder)
+VALUES (@DataSetId, @ColumnName, @DataType, @ColumnOrder);";
+
+            int order = 1;
+            foreach (var c in columns)
+            {
+                await conn.ExecuteAsync(new CommandDefinition(insertColSql, new
+                {
+                    DataSetId = datasetId,
+                    ColumnName = c.ColumnName,
+                    DataType = c.DataType,
+                    ColumnOrder = order++
+                }, tx, cancellationToken: ct));
             }
         }
 
@@ -272,7 +412,7 @@ WHERE DataSetId = @Id;";
 
             await using var conn = new SqlConnection(_connectionString);
             await conn.OpenAsync(ct);
-            await using var tx = await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
 
             try
             {
@@ -329,8 +469,4 @@ VALUES (@DataSetId, @ColumnName, @DataType, @ColumnOrder);";
                 throw new ArgumentException("Title is required.", nameof(title));
         }
     }
-
-
-
-
 }
