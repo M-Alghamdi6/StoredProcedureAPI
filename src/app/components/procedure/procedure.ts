@@ -28,11 +28,11 @@ import { environment } from '../../../environments/environment';
 export class ProcedureComponent implements OnInit, OnDestroy {
   private procService = inject(ProcedureService);
   private chartDataService = inject(ChartDataService);
-  private datasetStateService = inject(DatasetStateService);
+  public datasetStateService = inject(DatasetStateService);
   private datasetService = inject(DatasetService);
   private router = inject(Router);
   private chartDataSubscription?: Subscription;
-
+    
   schemas: SchemaModel[] = [];
   procedures: StoredProcedure[] = [];
   parameters: ProcedureParameter[] = [];
@@ -201,7 +201,12 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       return acc;
     }, {} as { [key: string]: any });
 
-    this.procService.executeProcedure(this.selectedSchema, this.selectedProcedure, parameters).subscribe({
+    const request: ProcedureExecutionRequest = {
+      parameters: parameters,
+      useCache: this.useCache
+    };
+
+    this.procService.executeProcedure(this.selectedSchema, this.selectedProcedure, request).subscribe({
       next: (response) => {
         console.log('✅ Execution Response:', response);
         
@@ -245,8 +250,11 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Prepare parameters - ensure they match what the procedure expects
     const params = parameters || this.parameters.reduce((acc, p) => {
-      acc[p.parameterName] = this.parameterValues[p.parameterName];
+      const value = this.parameterValues[p.parameterName];
+      // Convert empty strings to null for the API
+      acc[p.parameterName] = value === '' ? null : value;
       return acc;
     }, {} as any);
 
@@ -255,10 +263,10 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       procedure: this.selectedProcedure!,
       parameters: params,
       title: this.pendingDataset.title,
-      description: this.pendingDataset.description
+      description: this.pendingDataset.description || undefined
     };
 
-    console.log('💾 Saving dataset with request:', request);
+    console.log('💾 Saving dataset with request:', JSON.stringify(request, null, 2));
 
     this.datasetService.executeProcedureAndCreateDataset(request).subscribe({
       next: (dataset) => {
@@ -268,7 +276,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         this.datasetStateService.clearPendingDataset();
         this.pendingDataset = null;
         
-        // Show success message
+        // The response is the Dataset object directly, not wrapped in .data
         alert(`Dataset "${dataset.dataSetTitle}" created successfully!`);
         
         // Optionally redirect to datasets page
@@ -278,7 +286,44 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('❌ Failed to create dataset:', err);
-        alert('Procedure executed successfully, but failed to save as dataset. ' + (err.error?.message || err.message));
+        
+        // Extract detailed error information
+        let errorMessage = 'Failed to save as dataset.';
+        
+        if (err.error) {
+          // Check if error is a string (common with ASP.NET errors)
+          if (typeof err.error === 'string') {
+            try {
+              const errorObj = JSON.parse(err.error);
+              errorMessage += '\n' + (errorObj.message || errorObj.title || err.error);
+            } catch {
+              errorMessage += '\n' + err.error;
+            }
+          } else if (err.error.message) {
+            errorMessage += '\n' + err.error.message;
+          } else if (err.error.title) {
+            errorMessage += '\n' + err.error.title;
+          } else if (err.error.errors) {
+            // Validation errors
+            const errors = Object.entries(err.error.errors)
+              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+              .join('\n');
+            errorMessage += '\n' + errors;
+          }
+        } else if (err.message) {
+          errorMessage += '\n' + err.message;
+        }
+        
+        // Show detailed error in console for debugging
+        console.error('Full error details:', {
+          status: err.status,
+          statusText: err.statusText,
+          error: err.error,
+          message: err.message,
+          url: err.url
+        });
+        
+        alert(errorMessage);
       }
     });
   }

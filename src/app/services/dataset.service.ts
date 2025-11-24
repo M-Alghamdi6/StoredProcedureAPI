@@ -33,30 +33,30 @@ export interface ExecuteAndCreateDatasetRequest {
   schema: string;
   procedure: string;
   parameters?: { [key: string]: any };
-  title: string;  // Changed from dataSetTitle
+  title: string;
   description?: string;
 }
 
 export interface CreateFromProcedureRequest {
   procedureExecutionId: number;
-  title: string;  // Changed from dataSetTitle
+  title: string;
   description?: string;
 }
 
 export interface CreateFromBuilderRequest {
   builderId: number;
-  title: string;  // Changed from dataSetTitle
+  title: string;
   description?: string;
 }
 
 export interface CreateFromInlineRequest {
   inlineId: number;
-  title: string;  // Changed from dataSetTitle
+  title: string;
   description?: string;
 }
 
 export interface UpdateDatasetRequest {
-  title: string;  // Changed from dataSetTitle
+  title: string;
   description?: string;
 }
 
@@ -67,19 +67,20 @@ export interface ReplaceColumnsRequest {
 export interface ReplaceColumnItem {
   columnName: string;
   dataType: string;
-  columnOrder: number;
 }
 
+// API Response wrapper (if your backend uses this)
 export interface ApiResponse<T> {
   success: boolean;
-  message: string;
   data: T;
+  message?: string;
 }
 
 export interface PendingDataset {
-  title: string;
-  description?: string;
-  sourceType: number; // 1=Builder, 2=Inline, 3=Procedure
+  schema: string;
+  procedure: string;
+  parameters?: { [key: string]: any };
+  columns?: DatasetColumn[];
 }
 
 @Injectable({
@@ -93,72 +94,73 @@ export class DatasetService {
   /**
    * Execute a stored procedure and create a dataset from the result
    */
-  executeProcedureAndCreateDataset(request: ExecuteAndCreateDatasetRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.post<ApiResponse<Dataset>>(`${this.apiUrl}/procedure-execute`, request);
+  executeProcedureAndCreateDataset(request: ExecuteAndCreateDatasetRequest): Observable<Dataset> {
+    console.log('📤 Sending request to API:', JSON.stringify(request, null, 2));
+    return this.http.post<Dataset>(`${this.apiUrl}/procedure-execute`, request);
   }
 
   /**
    * Get a dataset by ID
    */
-  getDataset(id: number): Observable<ApiResponse<Dataset>> {
-    return this.http.get<ApiResponse<Dataset>>(`${this.apiUrl}/${id}`);
+  getDataset(id: number): Observable<Dataset> {
+    return this.http.get<Dataset>(`${this.apiUrl}/${id}`);
   }
 
   /**
    * Get recent datasets
    */
-  getRecent(top: number = 50): Observable<ApiResponse<Dataset[]>> {
+  getRecent(top: number = 50): Observable<Dataset[]> {
     const params = new HttpParams().set('top', top.toString());
-    return this.http.get<ApiResponse<Dataset[]>>(`${this.apiUrl}/recent`, { params });
+    return this.http.get<Dataset[]>(`${this.apiUrl}/recent`, { params });
   }
 
   /**
    * Get all source flags
    */
-  getSourceFlags(): Observable<ApiResponse<SourceFlag[]>> {
-    return this.http.get<ApiResponse<SourceFlag[]>>(`${this.apiUrl}/source-flags`);
+  getSourceFlags(): Observable<SourceFlag[]> {
+    return this.http.get<SourceFlag[]>(`${this.apiUrl}/source-flags`);
   }
 
   /**
    * Create dataset from procedure execution
    */
-  createFromProcedure(request: CreateFromProcedureRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.post<ApiResponse<Dataset>>(`${this.apiUrl}/procedure`, request);
+  createFromProcedure(request: CreateFromProcedureRequest): Observable<Dataset> {
+    return this.http.post<Dataset>(`${this.apiUrl}/procedure`, request);
   }
 
   /**
    * Create dataset from builder
    */
-  createFromBuilder(request: CreateFromBuilderRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.post<ApiResponse<Dataset>>(`${this.apiUrl}/builder`, request);
+  createFromBuilder(request: CreateFromBuilderRequest): Observable<Dataset> {
+    return this.http.post<Dataset>(`${this.apiUrl}/builder`, request);
   }
 
   /**
    * Create dataset from inline
    */
-  createFromInline(request: CreateFromInlineRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.post<ApiResponse<Dataset>>(`${this.apiUrl}/inline`, request);
+  createFromInline(request: CreateFromInlineRequest): Observable<Dataset> {
+    return this.http.post<Dataset>(`${this.apiUrl}/inline`, request);
   }
 
   /**
    * Update a dataset
    */
-  updateDataset(id: number, request: UpdateDatasetRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.put<ApiResponse<Dataset>>(`${this.apiUrl}/${id}`, request);
+  updateDataset(id: number, request: UpdateDatasetRequest): Observable<Dataset> {
+    return this.http.put<Dataset>(`${this.apiUrl}/${id}`, request);
   }
 
   /**
    * Replace columns for a dataset
    */
-  replaceColumns(id: number, request: ReplaceColumnsRequest): Observable<ApiResponse<Dataset>> {
-    return this.http.put<ApiResponse<Dataset>>(`${this.apiUrl}/${id}/columns`, request);
+  replaceColumns(id: number, request: ReplaceColumnsRequest): Observable<Dataset> {
+    return this.http.put<Dataset>(`${this.apiUrl}/${id}/columns`, request);
   }
 
   /**
    * Delete a dataset (if delete endpoint exists)
    */
-  deleteDataset(id: number): Observable<any> {
-    return this.http.delete(`${this.apiUrl}/${id}`);
+  deleteDataset(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 }
 
