@@ -1,0 +1,208 @@
+<div class="execution-logs-container">
+  <h1>Execution Logs</h1>
+
+  <!-- Toggle Filters Button -->
+  <div class="filter-toggle">
+    <button (click)="showFilters = !showFilters" class="btn-toggle">
+      {{ showFilters ? 'Hide Filters' : 'Show Filters' }}
+    </button>
+  </div>
+
+  <!-- Filters Section -->
+  @if (showFilters) {
+    <div class="filters-section">
+      <h2>Filters</h2>
+      <div class="filter-grid">
+        <div class="filter-item">
+          <label>Schema Name</label>
+          <select [(ngModel)]="schemaName" (change)="onSchemaChange()">
+            <option value="">All Schemas</option>
+            @for (schema of schemas; track schema) {
+              <option [value]="schema">{{ schema }}</option>
+            }
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>Procedure Name</label>
+          <select [(ngModel)]="procedureName">
+            <option value="">All Procedures</option>
+            @for (proc of procedures; track proc) {
+              <option [value]="proc">{{ proc }}</option>
+            }
+          </select>
+        </div>
+        <div class="filter-item">
+          <label>From Date</label>
+          <input type="datetime-local" [(ngModel)]="fromDate">
+        </div>
+        <div class="filter-item">
+          <label>To Date</label>
+          <input type="datetime-local" [(ngModel)]="toDate">
+        </div>
+        <div class="filter-item">
+          <label>Top Records</label>
+          <input type="number" [(ngModel)]="topRecords" min="1" max="1000">
+        </div>
+      </div>
+      <div class="filter-actions">
+        <button (click)="searchLogs()" class="btn-primary">Search</button>
+        <button (click)="clearFilters()" class="btn-secondary">Clear</button>
+        <button (click)="loadRecentLogs()" class="btn-secondary">Recent</button>
+        <button (click)="loadLatestLog()" class="btn-secondary">Latest</button>
+      </div>
+    </div>
+  }
+
+  <!-- Error Message -->
+  @if (error) {
+    <div class="error-message">{{ error }}</div>
+  }
+
+  <!-- Loading Spinner -->
+  @if (loading) {
+    <div class="loading">Loading...</div>
+  }
+
+  <!-- Logs Table -->
+  @if (!loading && logs.length > 0) {
+    <div class="logs-table-container">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Schema</th>
+            <th>Procedure</th>
+            <th>Executed At</th>
+            <th>Duration</th>
+            <th>Rows</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (log of logs; track log.id) {
+            <tr>
+              <td>{{ log.id }}</td>
+              <td>{{ log.schemaName }}</td>
+              <td>{{ log.procedureName }}</td>
+              <td>{{ formatDate(log.executedAt) }}</td>
+              <td>{{ formatDuration(log.durationMs) }}</td>
+              <td>{{ log.rowCount }}</td>
+              <td>
+                <div class="action-buttons">
+                  <button (click)="viewLogDetails(log)" class="btn-view">
+                    <mat-icon>visibility</mat-icon>
+                    View
+                  </button>
+                  @if (log.rowCount > 0) {
+                    <button (click)="createChartFromLog(log)" class="btn-chart">
+                      <mat-icon>insert_chart</mat-icon>
+                      Chart
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (!loading && logs.length === 0 && !error) {
+    <div class="no-data">No logs found</div>
+  }
+
+  <!-- Log Details Modal -->
+  @if (selectedLog) {
+    <div class="modal-overlay" (click)="closeDetails()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h2>Execution Log Details</h2>
+       
+        </div>
+        <div class="modal-body">
+          <div class="detail-row">
+            <strong>ID:</strong> {{ selectedLog.id }}
+          </div>
+          <div class="detail-row">
+            <strong>Schema:</strong> {{ selectedLog.schemaName }}
+          </div>
+          <div class="detail-row">
+            <strong>Procedure:</strong> {{ selectedLog.procedureName }}
+          </div>
+          <div class="detail-row">
+            <strong>Executed At:</strong> {{ formatDate(selectedLog.executedAt) }}
+          </div>
+          <div class="detail-row">
+            <strong>Duration:</strong> {{ formatDuration(selectedLog.durationMs) }}
+          </div>
+          <div class="detail-row">
+            <strong>Row Count:</strong> {{ selectedLog.rowCount }}
+          </div>
+          @if (selectedLog.parameters && selectedLog.parameters.length > 0) {
+            <div class="detail-row">
+              <strong>Parameters:</strong>
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Value</th>
+                    <th>Output</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (param of selectedLog.parameters; track param.parameterName) {
+                    <tr>
+                      <td>{{ param.parameterName }}</td>
+                      <td>{{ param.dataType }}</td>
+                      <td>{{ param.parameterValue || 'NULL' }}</td>
+                      <td>{{ param.outputValue || '-' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          @if (selectedLog.columns && selectedLog.columns.length > 0) {
+            <div class="detail-row">
+              <strong>Columns:</strong>
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Nullable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (col of selectedLog.columns; track col.columnOrdinal) {
+                    <tr>
+                      <td>{{ col.columnOrdinal }}</td>
+                      <td>{{ col.columnName }}</td>
+                      <td>{{ col.dataType }}</td>
+                      <td>{{ col.isNullable ? 'Yes' : 'No' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          @if (selectedLog.rowCount > 0) {
+            <button (click)="createChartFromLog(selectedLog)" class="btn-chart-modal">
+              <mat-icon>insert_chart</mat-icon>
+              Create Chart
+            </button>
+          }
+          <button (click)="closeDetails()" class="btn-close-modal">
+            <mat-icon>close</mat-icon>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

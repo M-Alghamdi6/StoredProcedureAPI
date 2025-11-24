@@ -1,0 +1,254 @@
+<div class="procedure-builder">
+  <!-- LEFT PANEL: Procedure Creator -->
+  <div class="left-panel">
+    <!-- Pending Dataset Banner - Shown when a dataset is being created -->
+    @if (pendingDataset) {
+      <div class="pending-dataset-banner">
+        <mat-icon>info</mat-icon>
+        <div class="banner-content">
+          <strong>Creating Dataset: {{ pendingDataset.title }}</strong>
+          <p>Execute a procedure below to save the results as this dataset</p>
+        </div>
+        <button class="btn-link" (click)="datasetStateService.clearPendingDataset(); pendingDataset = null">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+
+    <div class="schema-section">
+      <h2>
+        <mat-icon class="section-icon">storage</mat-icon>
+        Select Schema
+      </h2>
+      <select [(ngModel)]="selectedSchema" (ngModelChange)="onSchemaSelect($event)">
+        <option [value]="undefined" disabled selected>-- Select Schema --</option>
+        @for (s of schemas; track s.schemaName) {
+          <option [value]="s.schemaName">{{ s.schemaName }}</option>
+        }
+      </select>
+    </div>
+
+    @if (procedures.length) {
+      <div class="procedure-section">
+        <h2>
+          <mat-icon class="section-icon">code</mat-icon>
+          Select Procedure
+        </h2>
+        <select [(ngModel)]="selectedProcedure" (ngModelChange)="onProcedureSelect($event)">
+          <option [value]="undefined" disabled selected>-- Select Procedure --</option>
+          @for (p of procedures; track $index) {
+            <option [value]="p.name">{{ p.name }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    @if (parameters.length) {
+      <div class="parameters-section">
+        <h2>
+          <mat-icon class="section-icon">settings</mat-icon>
+          Parameters
+        </h2>
+        @for (param of parameters; track $index) {
+          <div class="parameter-row">
+            <label>
+              <mat-icon class="param-icon">tune</mat-icon>
+              {{ param.parameterName }} ({{ param.dataType }})
+            </label>
+            <input 
+              [(ngModel)]="parameterValues[param.parameterName]" 
+              [placeholder]="'Enter ' + param.parameterName.replace('@', '')" />
+          </div>
+        }
+        <button (click)="showExecutionPreview()">
+          <mat-icon>visibility</mat-icon>
+          Preview Execution
+        </button>
+      </div>
+    }
+  </div>
+
+  <!-- RIGHT PANEL: Results & Charts -->
+  <div class="right-panel">
+    @if (executionResult) {
+      <div class="results-section">
+        <h2>
+          <mat-icon class="section-icon">table_chart</mat-icon>
+          Results ({{ executionResult.rowCount }} rows)
+        </h2>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr>
+                @for (col of executionResult.columns; track $index) {
+                  <th>{{ col }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of executionResult.rows; track $index) {
+                <tr>
+                  @for (cell of row; track $index) {
+                    <td>{{ cell }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Chart Section - Only show after execution -->
+      <div class="chart-section">
+        <h2>
+          <mat-icon class="section-icon">insert_chart</mat-icon>
+          Chart View
+        </h2>
+
+        @if (datasetColumns.length) {
+          <div class="chart-controls">
+            <div class="control-group">
+              <label>
+                <mat-icon class="control-icon">horizontal_rule</mat-icon>
+                X-Axis (Category)
+              </label>
+              <select [(ngModel)]="xColumn">
+                <option [value]="''" disabled selected>-- Select X-Axis --</option>
+                @for (c of datasetColumns; track $index) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label>
+                <mat-icon class="control-icon">view_week</mat-icon>
+                Y-Axis (Numeric) - Select columns
+              </label>
+              <div class="checkbox-group">
+                @for (c of numericColumns; track $index) {
+                  <label class="checkbox-label">
+                    <input 
+                      type="checkbox" 
+                      [value]="c"
+                      [checked]="yColumns.includes(c)"
+                      (change)="onYColumnToggle(c, $event)" />
+                    <span>{{ c }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label>
+                <mat-icon class="control-icon">bar_chart</mat-icon>
+                Chart Type
+              </label>
+              <select [(ngModel)]="chartType">
+                <option [value]="''" disabled selected>-- Select Chart Type --</option>
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie</option>
+                <option value="doughnut">Doughnut</option>
+              </select>
+            </div>
+
+            <div class="button-group">
+              <button class="btn-build" (click)="renderChart()">
+                <mat-icon>auto_graph</mat-icon>
+                Build Chart
+              </button>
+              <button class="btn-save" (click)="saveChartToDashboard()" [disabled]="!isChartRendered">
+                <mat-icon>save</mat-icon>
+                Save to Dashboard
+              </button>
+            </div>
+          </div>
+
+          <canvas id="datasetChart"></canvas>
+        }
+      </div>
+    } @else {
+      <!-- Empty State -->
+      <div class="empty-state">
+        <mat-icon class="empty-icon">analytics</mat-icon>
+        <p class="empty-title">No Results Yet</p>
+        <p class="hint">Select a schema and procedure, then click "Preview Execution" to view results and charts</p>
+      </div>
+    }
+  </div>
+
+  <!-- Preview Modal -->
+  @if (showPreview && previewData) {
+    <div class="modal-overlay" (click)="closePreview()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h2>
+            <mat-icon class="header-icon">visibility</mat-icon>
+            Preview Execution
+          </h2>
+          <button (click)="closePreview()" class="close-btn">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="preview-row">
+            <strong>
+              <mat-icon class="inline-icon">storage</mat-icon>
+              Schema:
+            </strong>
+            <span>{{ previewData.schema }}</span>
+          </div>
+          <div class="preview-row">
+            <strong>
+              <mat-icon class="inline-icon">code</mat-icon>
+              Procedure:
+            </strong>
+            <span>{{ previewData.procedure }}</span>
+          </div>
+          <div class="preview-row">
+            <strong>
+              <mat-icon class="inline-icon">settings</mat-icon>
+              Parameters:
+            </strong>
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (param of previewData.parameters; track param.name) {
+                  <tr>
+                    <td>{{ param.name }}</td>
+                    <td>{{ param.type }}</td>
+                    <td>{{ param.value }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="preview-note-box">
+            <mat-icon class="info-icon">info</mat-icon>
+            <div>
+              <strong>Note:</strong> This execution will retrieve data only. Results will NOT be saved to the database.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button (click)="closePreview()" class="btn-secondary">
+            <mat-icon>cancel</mat-icon>
+            Cancel
+          </button>
+          <button (click)="executeProcedure()" class="btn-primary">
+            <mat-icon>play_arrow</mat-icon>
+            Execute & Load Results
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

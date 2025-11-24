@@ -1,0 +1,82 @@
+<div class="dashboard-container">
+  <h1>
+    <mat-icon class="page-icon">dashboard</mat-icon>
+    Dashboard
+  </h1>
+
+  <div class="saved-charts-section">
+    <h2>
+      <mat-icon class="section-icon">bookmark</mat-icon>
+      Saved Charts
+    </h2>
+    
+    @if (savedCharts && savedCharts.length > 0) {
+      <div class="charts-grid">
+        @for (chart of savedCharts; track chart.id) {
+          <div class="chart-card" (click)="loadSavedChart(chart)" 
+               [class.active]="selectedChart && selectedChart.id === chart.id">
+            <div class="chart-card-header">
+              <h3>
+                <mat-icon class="chart-type-icon">
+                  {{ chart.chartType === 'bar' ? 'bar_chart' : 
+                     chart.chartType === 'line' ? 'show_chart' : 
+                     chart.chartType === 'pie' ? 'pie_chart' : 'donut_large' }}
+                </mat-icon>
+                {{ chart.name || 'Unnamed Chart' }}
+              </h3>
+              <button class="delete-btn" (click)="deleteSavedChart(chart.id, $event)" title="Delete Chart">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+         
+            <p class="chart-meta">
+              <mat-icon class="meta-icon">schedule</mat-icon>
+              <span>{{ chart.executedAt | date:'short' }}</span>
+            </p>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">bar_chart_off</mat-icon>
+        <p>No saved charts yet</p>
+        <p class="hint">Create and save charts from the Stored Procedures page to see them here</p>
+      </div>
+    }
+  </div>
+
+  <div class="chart-container-section">
+    <h2>
+      <mat-icon class="section-icon">analytics</mat-icon>
+      Chart View
+    </h2>
+    
+    @if (selectedChart) {
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>{{ selectedChart.name || 'Unnamed Chart' }}</h3>
+          <div class="chart-details">
+         
+            <span class="detail-item">
+              <mat-icon>{{ selectedChart.chartType === 'bar' ? 'bar_chart' : 
+                           selectedChart.chartType === 'line' ? 'show_chart' : 
+                           selectedChart.chartType === 'pie' ? 'pie_chart' : 'donut_large' }}</mat-icon>
+              {{ selectedChart.chartType | uppercase }}
+            </span>
+            <span class="detail-item">
+              <mat-icon>table_rows</mat-icon>
+              {{ selectedChart.datasetRecords && selectedChart.datasetRecords.length || 0 }} records
+            </span>
+          </div>
+        </div>
+        <canvas id="dashboardChart"></canvas>
+      </div>
+    } @else {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">insert_chart_outlined</mat-icon>
+        <p>No chart selected</p>
+        <p class="hint">Click on a saved chart above to display it here</p>
+      </div>
+    }
+  </div>
+</div>

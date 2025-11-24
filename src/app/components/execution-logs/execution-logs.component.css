@@ -1,0 +1,292 @@
+.execution-logs-container {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.execution-logs-container h1 {
+  color: #333;
+  margin-bottom: 20px;
+}
+.execution-logs-container .filter-toggle {
+  margin-bottom: 20px;
+}
+.execution-logs-container .filter-toggle .btn-toggle {
+  padding: 10px 20px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+}
+.execution-logs-container .filter-toggle .btn-toggle:hover {
+  background: #0b7dda;
+}
+.execution-logs-container .filters-section {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.execution-logs-container .filters-section h2 {
+  margin-bottom: 15px;
+  color: #333;
+}
+.execution-logs-container .filters-section .filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+.execution-logs-container .filters-section .filter-grid .filter-item label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #555;
+}
+.execution-logs-container .filters-section .filter-grid .filter-item select,
+.execution-logs-container .filters-section .filter-grid .filter-item input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+}
+.execution-logs-container .filters-section .filter-grid .filter-item select:focus,
+.execution-logs-container .filters-section .filter-grid .filter-item input:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+.execution-logs-container .filters-section .filter-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.execution-logs-container .filters-section .filter-actions button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: all 0.3s;
+}
+.execution-logs-container .filters-section .filter-actions button.btn-primary {
+  background: #4caf50;
+  color: white;
+}
+.execution-logs-container .filters-section .filter-actions button.btn-primary:hover {
+  background: #45a049;
+}
+.execution-logs-container .filters-section .filter-actions button.btn-secondary {
+  background: #757575;
+  color: white;
+}
+.execution-logs-container .filters-section .filter-actions button.btn-secondary:hover {
+  background: #616161;
+}
+.execution-logs-container .error-message {
+  padding: 15px;
+  background: #ffebee;
+  color: #c62828;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c62828;
+}
+.execution-logs-container .loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 1.2em;
+  color: #666;
+}
+.execution-logs-container .logs-table-container {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.execution-logs-container .logs-table-container .logs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.execution-logs-container .logs-table-container .logs-table thead {
+  background: #f5f5f5;
+}
+.execution-logs-container .logs-table-container .logs-table thead th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+}
+.execution-logs-container .logs-table-container .logs-table tbody tr {
+  border-bottom: 1px solid #eee;
+}
+.execution-logs-container .logs-table-container .logs-table tbody tr:hover {
+  background: #f9f9f9;
+}
+.execution-logs-container .logs-table-container .logs-table tbody tr td {
+  padding: 12px;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+  transition: all 0.3s;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button.btn-view {
+  background: #2196f3;
+  color: white;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button.btn-view:hover {
+  background: #0b7dda;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button.btn-chart {
+  background: #ff9800;
+  color: white;
+}
+.execution-logs-container .logs-table-container .logs-table .action-buttons button.btn-chart:hover {
+  background: #e68900;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+.execution-logs-container .no-data {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+  font-size: 1.1em;
+}
+.execution-logs-container .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.execution-logs-container .modal-overlay .modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 800px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+.execution-logs-container .modal-overlay .modal-content .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 1;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-header h2 {
+  margin: 0;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-header .close-btn:hover {
+  color: #333;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body {
+  padding: 20px;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row {
+  margin-bottom: 15px;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #666;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row .detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row .detail-table th,
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row .detail-table td {
+  padding: 8px;
+  text-align: left;
+  border: 1px solid #ddd;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-body .detail-row .detail-table th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #eee;
+  position: sticky;
+  bottom: 0;
+  background: white;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button.btn-chart-modal {
+  background: #ff9800;
+  color: white;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button.btn-chart-modal:hover {
+  background: #e68900;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button.btn-close-modal {
+  background: #757575;
+  color: white;
+}
+.execution-logs-container .modal-overlay .modal-content .modal-footer button.btn-close-modal:hover {
+  background: #616161;
+}/*# sourceMappingURL=execution-logs.component.css.map */
