@@ -196,10 +196,16 @@ export class ProcedureComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.executionError = null;
 
+    // Convert parameters with proper types
     const parameters = this.parameters.reduce((acc, p) => {
-      acc[p.parameterName] = this.parameterValues[p.parameterName];
+      acc[p.parameterName] = this.convertParameterValue(
+        this.parameterValues[p.parameterName], 
+        p.dataType
+      );
       return acc;
     }, {} as { [key: string]: any });
+
+    console.log('🚀 Executing with converted parameters:', parameters);
 
     const request: ProcedureExecutionRequest = {
       parameters: parameters,
@@ -210,7 +216,6 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       next: (response) => {
         console.log('✅ Execution Response:', response);
         
-        // Extract the actual execution result from the response
         const executionData = response.data;
         
         this.executionResult = executionData;
@@ -229,7 +234,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
           numericColumns: this.numericColumns
         });
         
-        // Check if there's a pending dataset to save
+        // Check if there's a pending dataset to save - pass converted parameters
         if (this.pendingDataset) {
           this.saveExecutionToDataset(parameters);
         }
@@ -250,11 +255,13 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Prepare parameters - ensure they match what the procedure expects
+    // Prepare parameters with proper type conversion
     const params = parameters || this.parameters.reduce((acc, p) => {
       const value = this.parameterValues[p.parameterName];
-      // Convert empty strings to null for the API
-      acc[p.parameterName] = value === '' ? null : value;
+      
+      // Convert to appropriate type based on SQL data type
+      acc[p.parameterName] = this.convertParameterValue(value, p.dataType);
+      
       return acc;
     }, {} as any);
 
@@ -263,7 +270,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       procedure: this.selectedProcedure!,
       parameters: params,
       title: this.pendingDataset.title,
-      description: this.pendingDataset.description || undefined
+      description: this.pendingDataset.description
     };
 
     console.log('💾 Saving dataset with request:', JSON.stringify(request, null, 2));
@@ -276,10 +283,8 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         this.datasetStateService.clearPendingDataset();
         this.pendingDataset = null;
         
-        // The response is the Dataset object directly, not wrapped in .data
         alert(`Dataset "${dataset.dataSetTitle}" created successfully!`);
         
-        // Optionally redirect to datasets page
         if (confirm('Would you like to view your dataset?')) {
           this.router.navigate(['/datasets']);
         }
@@ -287,34 +292,18 @@ export class ProcedureComponent implements OnInit, OnDestroy {
       error: (err) => {
         console.error('❌ Failed to create dataset:', err);
         
-        // Extract detailed error information
         let errorMessage = 'Failed to save as dataset.';
         
         if (err.error) {
-          // Check if error is a string (common with ASP.NET errors)
           if (typeof err.error === 'string') {
-            try {
-              const errorObj = JSON.parse(err.error);
-              errorMessage += '\n' + (errorObj.message || errorObj.title || err.error);
-            } catch {
-              errorMessage += '\n' + err.error;
-            }
+            errorMessage += '\n' + err.error;
           } else if (err.error.message) {
             errorMessage += '\n' + err.error.message;
           } else if (err.error.title) {
             errorMessage += '\n' + err.error.title;
-          } else if (err.error.errors) {
-            // Validation errors
-            const errors = Object.entries(err.error.errors)
-              .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
-              .join('\n');
-            errorMessage += '\n' + errors;
           }
-        } else if (err.message) {
-          errorMessage += '\n' + err.message;
         }
         
-        // Show detailed error in console for debugging
         console.error('Full error details:', {
           status: err.status,
           statusText: err.statusText,
@@ -326,6 +315,51 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         alert(errorMessage);
       }
     });
+  }
+
+  // Add helper method to convert parameter values based on SQL type
+  private convertParameterValue(value: any, dataType: string): any {
+    // Handle null/undefined/empty
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    const type = dataType.toLowerCase();
+
+    // Integer types
+    if (type.includes('int') || type.includes('bigint') || type.includes('smallint') || type.includes('tinyint')) {
+      const num = Number(value);
+      return isNaN(num) ? null : num;
+    }
+
+    // Decimal/Numeric types
+    if (type.includes('decimal') || type.includes('numeric') || type.includes('money') || 
+        type.includes('float') || type.includes('real')) {
+      const num = parseFloat(value);
+      return isNaN(num) ? null : num;
+    }
+
+    // Boolean/Bit
+    if (type.includes('bit') || type.includes('bool')) {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      const str = String(value).toLowerCase();
+      return str === 'true' || str === '1' || str === 'yes';
+    }
+
+    // Date/DateTime types
+    if (type.includes('date') || type.includes('time')) {
+      // Return as ISO string for proper JSON serialization
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      // Try to parse string to date
+      const date = new Date(value);
+      return isNaN(date.getTime()) ? value : date.toISOString();
+    }
+
+    // Default: return as string
+    return String(value);
   }
 
   private toRecordsFromResult(result: ProcedureExecutionResponse): any[] {
