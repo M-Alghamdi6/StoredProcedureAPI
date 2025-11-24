@@ -1,252 +1,142 @@
 <div class="dataset-container">
-  <!-- Header -->
-  <div class="header">
-    <h1>
-      <mat-icon>dataset</mat-icon>
-      Datasets
-    </h1>
-    @if (currentView === 'list') {
-      <button class="btn-primary" (click)="showCreateForm()">
-        <mat-icon>add</mat-icon>
-        Create Dataset
-      </button>
-    }
-    @if (currentView !== 'list') {
-      <button class="btn-secondary" (click)="backToList()">
-        <mat-icon>arrow_back</mat-icon>
-        Back to List
-      </button>
-    }
-  </div>
-
-  <!-- Error Message -->
-  @if (error) {
-    <div class="error-message">
-      <mat-icon>error</mat-icon>
-      {{ error }}
-      <button class="close-btn" (click)="error = null">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
-  }
-
-  <!-- Loading Spinner -->
-  @if (loading) {
-    <div class="loading">
-      <mat-icon class="spin">refresh</mat-icon>
-      Loading...
-    </div>
-  }
-
   <!-- List View -->
   @if (currentView === 'list') {
     <div class="dataset-list">
-      @if (datasets.length === 0 && !loading) {
-        <div class="empty-state">
-          <mat-icon>folder_open</mat-icon>
-          <h3>No Datasets Found</h3>
-          <p>Create your first dataset to get started</p>
+      <h2>
+        Recent Datasets
+        <button class="create-btn" (click)="showCreateForm()">
+          <mat-icon>add</mat-icon> New
+        </button>
+      </h2>
+      
+      @if (loading) {
+        <div class="loading">
+          <p>Loading datasets...</p>
         </div>
       }
-
-      <div class="dataset-grid">
-        @for (dataset of datasets; track dataset.dataSetId) {
-          <div class="dataset-card" (click)="viewDataset(dataset)">
-            <div class="card-header">
-              <h3>{{ dataset.dataSetTitle }}</h3>
-              <div class="card-actions" (click)="$event.stopPropagation()">
-                <button class="icon-btn danger" (click)="deleteDataset(dataset)" title="Delete">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-            </div>
-            
-            @if (dataset.description) {
-              <p class="description">{{ dataset.description }}</p>
-            }
-            
-            <div class="card-meta">
-              <div class="meta-item">
-                <mat-icon>source</mat-icon>
-                <span>{{ getSourceFlagLabel(dataset.sourceType) }}</span>
-              </div>
-              <div class="meta-item">
-                <mat-icon>view_column</mat-icon>
-                <span>{{ dataset.columns.length || 0 }} columns</span>
-              </div>
-              <div class="meta-item">
-                <mat-icon>schedule</mat-icon>
-                <span>{{ formatDate(dataset.createdAt) }}</span>
-              </div>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-  }
-
-  <!-- Create View -->
-  @if (currentView === 'create') {
-    <div class="create-form">
-      <h2>Create New Dataset</h2>
-      <p class="form-hint">
-        Choose a method to create your dataset. You'll be redirected to the appropriate page to build or execute your query.
-      </p>
-
-      <div class="form-section">
-        <div class="form-group">
-          <label>Dataset Title *</label>
-          <input 
-            type="text" 
-            [(ngModel)]="newDataset.title" 
-            placeholder="Enter a descriptive title for your dataset"
-            class="form-input">
+      
+      @if (error) {
+        <div class="error">
+          <p>{{ error }}</p>
         </div>
-
-        <div class="form-group">
-          <label>Description</label>
-          <textarea 
-            [(ngModel)]="newDataset.description" 
-            placeholder="Enter an optional description"
-            rows="3"
-            class="form-input"></textarea>
+      }
+      
+      @if (!loading && datasets && datasets.length > 0) {
+        <ul>
+          @for (dataset of datasets; track dataset.dataSetId) {
+            <li (click)="selectDataset(dataset)" 
+                [class.selected]="selectedDataset?.dataSetId === dataset.dataSetId">
+              <strong>{{ dataset.dataSetTitle }}</strong>
+              <small>Created: {{ formatDate(dataset.createdAt) }}</small>
+              <div class="source-badge">{{ getSourceFlagLabel(dataset.sourceType) }}</div>
+            </li>
+          }
+        </ul>
+      }
+      
+      @if (!loading && (!datasets || datasets.length === 0)) {
+        <div class="empty-state">
+          <p>No datasets found.</p>
         </div>
-
-        <div class="form-group">
-          <label>Source Method *</label>
-          <div class="method-selector">
-            <div 
-              class="method-card" 
-              [class.selected]="newDataset.sourceType === 3"
-              (click)="newDataset.sourceType = 3">
-              <mat-icon>storage</mat-icon>
-              <div class="method-info">
-                <h4>Stored Procedure</h4>
-                <p>Execute an existing stored procedure and save the results</p>
-              </div>
-              @if (newDataset.sourceType === 3) {
-                <mat-icon class="check-icon">check_circle</mat-icon>
-              }
-            </div>
-
-            <div 
-              class="method-card" 
-              [class.selected]="newDataset.sourceType === 1"
-              (click)="newDataset.sourceType = 1">
-              <mat-icon>build</mat-icon>
-              <div class="method-info">
-                <h4>Query Builder</h4>
-                <p>Build a query visually and save the dataset</p>
-              </div>
-              @if (newDataset.sourceType === 1) {
-                <mat-icon class="check-icon">check_circle</mat-icon>
-              }
-            </div>
-
-            <div 
-              class="method-card" 
-              [class.selected]="newDataset.sourceType === 2"
-              (click)="newDataset.sourceType = 2">
-              <mat-icon>code</mat-icon>
-              <div class="method-info">
-                <h4>Inline Query</h4>
-                <p>Write a custom SQL query and save the results</p>
-              </div>
-              @if (newDataset.sourceType === 2) {
-                <mat-icon class="check-icon">check_circle</mat-icon>
-              }
-            </div>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button class="btn-secondary" (click)="backToList()">
-            <mat-icon>cancel</mat-icon>
-            Cancel
-          </button>
-          <button class="btn-primary" (click)="createDataset()" [disabled]="!newDataset.title">
-            <mat-icon>arrow_forward</mat-icon>
-            Continue to {{ getSourceFlagLabel(newDataset.sourceType) }}
-          </button>
-        </div>
-      </div>
+      }
     </div>
   }
 
   <!-- Detail View -->
   @if (currentView === 'detail' && selectedDataset) {
-    <div class="dataset-detail">
-      <div class="detail-header">
-        <div>
-          <h2>{{ selectedDataset.dataSetTitle }}</h2>
-          @if (selectedDataset.description) {
-            <p class="description">{{ selectedDataset.description }}</p>
-          }
-        </div>
-      </div>
-
-      <div class="detail-info">
-        <div class="info-card">
-          <mat-icon>source</mat-icon>
-          <div>
-            <label>Source</label>
-            <span>{{ getSourceFlagLabel(selectedDataset.sourceType) }}</span>
-          </div>
-        </div>
-
-        <div class="info-card">
-          <mat-icon>event</mat-icon>
-          <div>
-            <label>Created</label>
-            <span>{{ formatDate(selectedDataset.createdAt) }}</span>
-          </div>
-        </div>
-
-        <div class="info-card">
-          <mat-icon>update</mat-icon>
-          <div>
-            <label>Modified</label>
-            <span>{{ formatDate(selectedDataset.modifiedAt) }}</span>
-          </div>
-        </div>
-
-        <div class="info-card">
-          <mat-icon>view_column</mat-icon>
-          <div>
-            <label>Columns</label>
-            <span>{{ selectedDataset.columns.length || 0 }}</span>
-          </div>
-        </div>
-      </div>
-
-      @if (selectedDataset.columns && selectedDataset.columns.length > 0) {
-        <div class="columns-section">
-          <h3>
-            <mat-icon>table_chart</mat-icon>
-            Columns
-          </h3>
-          <div class="columns-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Name</th>
-                  <th>Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (column of selectedDataset.columns; track column.columnId) {
-                  <tr>
-                    <td>{{ column.columnOrder }}</td>
-                    <td>{{ column.columnName }}</td>
-                    <td>{{ column.dataType }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
+    <div class="dataset-details">
+      <h2>{{ selectedDataset.dataSetTitle }}</h2>
+      
+      @if (selectedDataset.description) {
+        <div class="description">
+          <p>{{ selectedDataset.description }}</p>
         </div>
       }
+
+      <div class="metadata">
+        <div class="metadata-item">
+          <div class="label">Source Type</div>
+          <div class="value">{{ getSourceFlagLabel(selectedDataset.sourceType) }}</div>
+        </div>
+        <div class="metadata-item">
+          <div class="label">Created</div>
+          <div class="value">{{ formatDate(selectedDataset.createdAt) }}</div>
+        </div>
+        <div class="metadata-item">
+          <div class="label">Modified</div>
+          <div class="value">{{ formatDate(selectedDataset.modifiedAt) }}</div>
+        </div>
+      </div>
+      
+      <h3>Columns ({{ columns.length }})</h3>
+      @if (columns && columns.length > 0) {
+        <table>
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Column Name</th>
+              <th>Data Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (column of columns; track column.columnId) {
+              <tr>
+                <td>{{ column.columnOrder }}</td>
+                <td><strong>{{ column.columnName }}</strong></td>
+                <td>{{ column.dataType }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <div class="empty-state">
+          <p>No columns defined for this dataset.</p>
+        </div>
+      }
+
+      <div class="actions">
+        <button class="back-btn" (click)="backToList()">
+          <mat-icon>arrow_back</mat-icon> Back to List
+        </button>
+        <button class="delete-btn" (click)="deleteDataset(selectedDataset.dataSetId)">
+          <mat-icon>delete</mat-icon> Delete
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Create Form View -->
+  @if (currentView === 'create') {
+    <div class="create-form">
+      <h2>Create New Dataset</h2>
+      
+      <div class="form-group">
+        <label for="title">Title *</label>
+        <input id="title" type="text" [(ngModel)]="newDataset.title" placeholder="Enter dataset title" />
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" [(ngModel)]="newDataset.description" placeholder="Enter description"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="sourceType">Source Type *</label>
+        <select id="sourceType" [(ngModel)]="newDataset.sourceType">
+          <option [value]="1">Query Builder</option>
+          <option [value]="2">Inline Query</option>
+          <option [value]="3">Stored Procedure</option>
+        </select>
+      </div>
+
+      @if (error) {
+        <div class="error">{{ error }}</div>
+      }
+
+      <div class="form-actions">
+        <button class="submit-btn" (click)="createDataset()">Continue</button>
+        <button class="cancel-btn" (click)="backToList()">Cancel</button>
+      </div>
     </div>
   }
 </div>

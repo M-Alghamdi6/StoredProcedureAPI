@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { PendingDataset } from './dataset-state.service';
+// Removed import for ./dataset.model because Dataset interface is defined below
 
 export interface Dataset {
   dataSetId: number;
@@ -29,30 +31,31 @@ export interface SourceFlag {
   sourceName: string;
 }
 
-export interface ExecuteAndCreateDatasetRequest {
-  schema: string;
-  procedure: string;
-  parameters?: { [key: string]: any };
+export interface CreateDatasetUnifiedRequest {
+  sourceType: number;          // 1=Builder, 2=Inline, 3=Procedure
   title: string;
   description?: string;
+  data: DatasetSourceData;     // holds one of the nested DTOs
 }
 
-export interface CreateFromProcedureRequest {
-  procedureExecutionId: number;
-  title: string;
-  description?: string;
+export interface DatasetSourceData {
+  builder?: BuilderSourceDto;
+  inline?: InlineSourceDto;
+  procedure?: ProcedureSourceDto;
 }
 
-export interface CreateFromBuilderRequest {
+export interface BuilderSourceDto {
   builderId: number;
-  title: string;
-  description?: string;
+  columns?: DatasetColumn[];
 }
 
-export interface CreateFromInlineRequest {
+export interface InlineSourceDto {
   inlineId: number;
-  title: string;
-  description?: string;
+  columns?: DatasetColumn[];
+}
+
+export interface ProcedureSourceDto {
+  procedureExecutionId: number;
 }
 
 export interface UpdateDatasetRequest {
@@ -76,11 +79,10 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface PendingDataset {
-  schema: string;
-  procedure: string;
-  parameters?: { [key: string]: any };
-  columns?: DatasetColumn[];
+export interface CreateFromProcedureRequest {
+  procedureExecutionId: number;
+  title: string;
+  description?: string;
 }
 
 @Injectable({
@@ -92,11 +94,11 @@ export class DatasetService {
   constructor(private http: HttpClient) {}
 
   /**
-   * Execute a stored procedure and create a dataset from the result
+   * Create a dataset using the unified create endpoint
    */
-  executeProcedureAndCreateDataset(request: ExecuteAndCreateDatasetRequest): Observable<Dataset> {
+  createUnifiedDataset(request: CreateDatasetUnifiedRequest): Observable<Dataset> {
     console.log('📤 Sending request to API:', JSON.stringify(request, null, 2));
-    return this.http.post<Dataset>(`${this.apiUrl}/procedure-execute`, request);
+    return this.http.post<Dataset>(this.apiUrl, request);
   }
 
   /**
@@ -122,27 +124,6 @@ export class DatasetService {
   }
 
   /**
-   * Create dataset from procedure execution
-   */
-  createFromProcedure(request: CreateFromProcedureRequest): Observable<Dataset> {
-    return this.http.post<Dataset>(`${this.apiUrl}/procedure`, request);
-  }
-
-  /**
-   * Create dataset from builder
-   */
-  createFromBuilder(request: CreateFromBuilderRequest): Observable<Dataset> {
-    return this.http.post<Dataset>(`${this.apiUrl}/builder`, request);
-  }
-
-  /**
-   * Create dataset from inline
-   */
-  createFromInline(request: CreateFromInlineRequest): Observable<Dataset> {
-    return this.http.post<Dataset>(`${this.apiUrl}/inline`, request);
-  }
-
-  /**
    * Update a dataset
    */
   updateDataset(id: number, request: UpdateDatasetRequest): Observable<Dataset> {
@@ -162,6 +143,11 @@ export class DatasetService {
   deleteDataset(id: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
+
+  /**
+   * Create a dataset from a procedure
+   */
+ 
 }
 
 @Injectable({

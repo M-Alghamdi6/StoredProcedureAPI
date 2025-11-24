@@ -14,19 +14,14 @@ import { DatasetStateService, PendingDataset } from '../../services/dataset-stat
   styleUrls: ['./dataset.component.scss']
 })
 export class DatasetComponent implements OnInit {
-  // View states
-  currentView: 'list' | 'create' | 'detail' = 'list';
-  
-  // Data
   datasets: Dataset[] = [];
   selectedDataset: Dataset | null = null;
-  
-  // Loading & Error
+  columns: DatasetColumn[] = [];
   loading = false;
   error: string | null = null;
-
-  // Create Form
-  newDataset: PendingDataset = {
+  currentView: 'list' | 'create' | 'detail' = 'list';
+  
+  newDataset = {
     title: '',
     description: '',
     sourceType: 3 // Default to Stored Procedure
@@ -38,29 +33,39 @@ export class DatasetComponent implements OnInit {
     private router: Router
   ) {}
 
-  ngOnInit() {
-    this.loadDatasets();
+  ngOnInit(): void {
+    this.loadRecentDatasets();
   }
 
-  // Load Data
-  loadDatasets() {
+  loadRecentDatasets(): void {
     this.loading = true;
     this.error = null;
     
     this.datasetService.getRecent(50).subscribe({
-      next: (datasets) => {
-        this.datasets = datasets || [];
+      next: (response: any) => {
+        console.log('✅ Datasets loaded:', response);
+        // Extract the data array from the response wrapper
+        const datasets = response?.data || response;
+        this.datasets = Array.isArray(datasets) ? datasets : [];
+        console.log('📊 Processed datasets:', this.datasets);
         this.loading = false;
       },
       error: (err) => {
-        this.error = err.message || 'Failed to load datasets';
+        console.error('❌ Failed to load datasets:', err);
+        this.error = 'Failed to load datasets';
+        this.datasets = [];
         this.loading = false;
       }
     });
   }
 
-  // Navigation
-  showCreateForm() {
+  selectDataset(dataset: Dataset): void {
+    this.selectedDataset = dataset;
+    this.columns = Array.isArray(dataset.columns) ? dataset.columns : [];
+    this.currentView = 'detail';
+  }
+
+  showCreateForm(): void {
     this.currentView = 'create';
     this.newDataset = {
       title: '',
@@ -69,27 +74,28 @@ export class DatasetComponent implements OnInit {
     };
   }
 
-  backToList() {
+  backToList(): void {
     this.currentView = 'list';
     this.selectedDataset = null;
+    this.columns = [];
   }
 
-  viewDataset(dataset: Dataset) {
-    this.selectedDataset = dataset;
-    this.currentView = 'detail';
-  }
-
-  // Create Dataset - Just sets up the pending dataset and redirects
-  createDataset() {
+  createDataset(): void {
     if (!this.newDataset.title) {
-      this.error = 'Dataset title is required';
+      this.error = 'Title is required';
       return;
     }
 
-    // Store the pending dataset
-    this.datasetStateService.setPendingDataset(this.newDataset);
+    // Store the pending dataset information
+    const pendingDataset: PendingDataset = {
+      title: this.newDataset.title,
+      description: this.newDataset.description,
+      sourceType: this.newDataset.sourceType
+    };
 
-    // Redirect to appropriate page based on source type
+    this.datasetStateService.setPendingDataset(pendingDataset);
+
+    // Navigate to the appropriate page based on source type
     switch (this.newDataset.sourceType) {
       case 1: // Query Builder
         this.router.navigate(['/query-builder']);
@@ -100,44 +106,44 @@ export class DatasetComponent implements OnInit {
       case 3: // Stored Procedure
         this.router.navigate(['/procedures']);
         break;
+      default:
+        this.error = 'Invalid source type';
     }
   }
 
-  // Delete
-  deleteDataset(dataset: Dataset) {
-    if (!confirm(`Are you sure you want to delete "${dataset.dataSetTitle}"?`)) {
+  getSourceFlagLabel(sourceType: number): string {
+    switch (sourceType) {
+      case 1: return 'Query Builder';
+      case 2: return 'Inline Query';
+      case 3: return 'Stored Procedure';
+      default: return 'Unknown';
+    }
+  }
+
+  formatDate(dateString: string): string {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  }
+
+  deleteDataset(datasetId: number): void {
+    if (!confirm('Are you sure you want to delete this dataset?')) {
       return;
     }
 
-    this.loading = true;
-    this.error = null;
-
-    this.datasetService.deleteDataset(dataset.dataSetId).subscribe({
+    this.datasetService.deleteDataset(datasetId).subscribe({
       next: () => {
-        this.loadDatasets();
-        if (this.selectedDataset?.dataSetId === dataset.dataSetId) {
-          this.backToList();
+        console.log('✅ Dataset deleted');
+        this.loadRecentDatasets();
+        if (this.selectedDataset?.dataSetId === datasetId) {
+          this.selectedDataset = null;
+          this.columns = [];
         }
-        this.loading = false;
       },
       error: (err) => {
-        this.error = err.message || 'Failed to delete dataset';
-        this.loading = false;
+        console.error('❌ Failed to delete dataset:', err);
+        this.error = 'Failed to delete dataset';
       }
     });
-  }
-
-  // Helpers
-  getSourceFlagLabel(sourceType: number): string {
-    const labels: { [key: number]: string } = {
-      1: 'Query Builder',
-      2: 'Inline Query',
-      3: 'Stored Procedure'
-    };
-    return labels[sourceType] || 'Unknown';
-  }
-
-  formatDate(date: string | Date): string {
-    return new Date(date).toLocaleString();
   }
 }

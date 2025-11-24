@@ -13,10 +13,18 @@ import {
 } from '../../services/procedure.service';
 import { ChartDataService, SavedChart } from '../../services/chart-data.service';
 import { DatasetStateService } from '../../services/dataset-state.service';
-import { DatasetService, ExecuteAndCreateDatasetRequest } from '../../services/dataset.service';
+import { DatasetService, CreateDatasetUnifiedRequest } from '../../services/dataset.service';
 import { Router } from '@angular/router';
 import Chart from 'chart.js/auto';
 import { environment } from '../../../environments/environment';
+import { HttpErrorResponse } from '@angular/common/http'; // Import HttpErrorResponse
+
+// Added missing interface for dataset creation request
+interface CreateFromProcedureRequest {
+  procedureExecutionId: number;
+  title: string;
+  description?: string;
+}
 
 @Component({
   selector: 'app-procedure',
@@ -122,7 +130,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         console.log('✅ API Success - Schemas:', response);
         this.schemas = response.data || [];
       },
-      error: err => console.error('❌ API Error - Schemas:', err)
+      error: (err: HttpErrorResponse) => console.error('❌ API Error - Schemas:', err)
     });
   }
 
@@ -140,7 +148,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         console.log('✅ API Success - Procedures:', response);
         this.procedures = response.data || [];
       },
-      error: err => console.error('❌ API Error - Procedures:', err)
+      error: (err: HttpErrorResponse) => console.error('❌ API Error - Procedures:', err)
     });
   }
 
@@ -159,7 +167,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
         this.parameters = response.data || [];
         this.parameters.forEach(p => this.parameterValues[p.parameterName] = '');
       },
-      error: err => console.error('❌ API Error - Parameters:', err)
+      error: (err: HttpErrorResponse) => console.error('❌ API Error - Parameters:', err)
     });
   }
 
@@ -196,12 +204,18 @@ export class ProcedureComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.executionError = null;
 
-    // Convert parameters with proper types
+    // Convert parameters with proper types and filter out undefined
     const parameters = this.parameters.reduce((acc, p) => {
-      acc[p.parameterName] = this.convertParameterValue(
+      const convertedValue = this.convertParameterValue(
         this.parameterValues[p.parameterName], 
         p.dataType
       );
+      
+      // Only include parameter if it has a value (not undefined)
+      if (convertedValue !== undefined) {
+        acc[p.parameterName] = convertedValue;
+      }
+      
       return acc;
     }, {} as { [key: string]: any });
 
@@ -215,6 +229,7 @@ export class ProcedureComponent implements OnInit, OnDestroy {
     this.procService.executeProcedure(this.selectedSchema, this.selectedProcedure, request).subscribe({
       next: (response) => {
         console.log('✅ Execution Response:', response);
+        console.log('📊 Response ID:', response.id, 'Type:', typeof response.id);
         
         const executionData = response.data;
         
@@ -234,14 +249,24 @@ export class ProcedureComponent implements OnInit, OnDestroy {
           numericColumns: this.numericColumns
         });
         
-        // Check if there's a pending dataset to save - pass converted parameters
-        if (this.pendingDataset) {
-          this.saveExecutionToDataset(parameters);
+        // Check if there's a pending dataset to save
+        if (this.pendingDataset && response.id) {
+          // Convert to number if it's a string
+          const executionId = typeof response.id === 'string' 
+            ? parseInt(response.id, 10) 
+            : response.id;
+          
+          if (!isNaN(executionId)) {
+            this.saveExecutionToDataset(executionId);
+          } else {
+            console.error('❌ Invalid execution ID:', response.id);
+            alert('Failed to save dataset: Invalid execution ID received from server');
+          }
         }
         
         this.loading = false;
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         console.error('❌ Execution Error:', err);
         this.executionError = err.error?.message || err.message || 'Failed to execute procedure';
         this.loading = false;
@@ -249,33 +274,28 @@ export class ProcedureComponent implements OnInit, OnDestroy {
     });
   }
 
-  saveExecutionToDataset(parameters?: { [key: string]: any }) {
-    if (!this.pendingDataset || !this.executionResult) {
-      console.warn('⚠️ Cannot save dataset: missing pendingDataset or executionResult');
+  saveExecutionToDataset(executionId: number) {
+    if (!this.pendingDataset) {
+      console.warn('⚠️ Cannot save dataset: missing pendingDataset');
       return;
     }
 
-    // Prepare parameters with proper type conversion
-    const params = parameters || this.parameters.reduce((acc, p) => {
-      const value = this.parameterValues[p.parameterName];
-      
-      // Convert to appropriate type based on SQL data type
-      acc[p.parameterName] = this.convertParameterValue(value, p.dataType);
-      
-      return acc;
-    }, {} as any);
-
-    const request: ExecuteAndCreateDatasetRequest = {
-      schema: this.selectedSchema!,
-      procedure: this.selectedProcedure!,
-      parameters: params,
+    // Use the unified create request structure
+    const request: CreateDatasetUnifiedRequest = {
+      sourceType: 3, // Procedure
       title: this.pendingDataset.title,
-      description: this.pendingDataset.description
+      description: this.pendingDataset.description,
+      data: {
+        procedure: {
+          procedureExecutionId: executionId
+        }
+      }
     };
 
-    console.log('💾 Saving dataset with request:', JSON.stringify(request, null, 2));
+    console.log('💾 Saving dataset with unified request:', JSON.stringify(request, null, 2));
+    console.log('📊 Execution ID being used:', executionId);
 
-    this.datasetService.executeProcedureAndCreateDataset(request).subscribe({
+    this.datasetService.createUnifiedDataset(request).subscribe({
       next: (dataset) => {
         console.log('✅ Dataset created successfully:', dataset);
         
@@ -289,18 +309,27 @@ export class ProcedureComponent implements OnInit, OnDestroy {
           this.router.navigate(['/datasets']);
         }
       },
-      error: (err) => {
+      error: (err: HttpErrorResponse) => {
         console.error('❌ Failed to create dataset:', err);
         
         let errorMessage = 'Failed to save as dataset.';
         
+        if (err.status === 500) {
+          errorMessage += '\n\nPossible causes:';
+          errorMessage += '\n- Execution log not found in database';
+          errorMessage += '\n- Missing column metadata for this execution';
+          errorMessage += '\n- Database constraint violation';
+          
+          console.error('Failed for execution ID:', executionId);
+        }
+        
         if (err.error) {
           if (typeof err.error === 'string') {
-            errorMessage += '\n' + err.error;
+            errorMessage += '\n\nServer message: ' + err.error;
           } else if (err.error.message) {
-            errorMessage += '\n' + err.error.message;
+            errorMessage += '\n\nServer message: ' + err.error.message;
           } else if (err.error.title) {
-            errorMessage += '\n' + err.error.title;
+            errorMessage += '\n\nServer message: ' + err.error.title;
           }
         }
         
@@ -309,7 +338,8 @@ export class ProcedureComponent implements OnInit, OnDestroy {
           statusText: err.statusText,
           error: err.error,
           message: err.message,
-          url: err.url
+          url: err.url,
+          executionId: executionId
         });
         
         alert(errorMessage);
@@ -319,9 +349,9 @@ export class ProcedureComponent implements OnInit, OnDestroy {
 
   // Add helper method to convert parameter values based on SQL type
   private convertParameterValue(value: any, dataType: string): any {
-    // Handle null/undefined/empty
+    // Handle null/undefined/empty - return undefined to exclude from request
     if (value === null || value === undefined || value === '') {
-      return null;
+      return undefined;
     }
 
     const type = dataType.toLowerCase();
@@ -329,14 +359,14 @@ export class ProcedureComponent implements OnInit, OnDestroy {
     // Integer types
     if (type.includes('int') || type.includes('bigint') || type.includes('smallint') || type.includes('tinyint')) {
       const num = Number(value);
-      return isNaN(num) ? null : num;
+      return isNaN(num) ? undefined : num;
     }
 
     // Decimal/Numeric types
     if (type.includes('decimal') || type.includes('numeric') || type.includes('money') || 
         type.includes('float') || type.includes('real')) {
       const num = parseFloat(value);
-      return isNaN(num) ? null : num;
+      return isNaN(num) ? undefined : num;
     }
 
     // Boolean/Bit
