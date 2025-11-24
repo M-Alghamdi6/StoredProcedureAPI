@@ -1,0 +1,48 @@
+<div class="app-container">
+  <aside class="sidebar" [class.collapsed]="!sidebarOpen">
+    <div class="sidebar-header">
+      @if (sidebarOpen) {
+        <h1>
+          <mat-icon class="logo-icon">code</mat-icon>
+          Procedure
+        </h1>
+      }
+      <button class="toggle-btn" (click)="toggleSidebar()">
+        <mat-icon>{{ sidebarOpen ? 'menu_open' : 'menu' }}</mat-icon>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a routerLink="/procedures" routerLinkActive="active" class="nav-item">
+        <mat-icon class="nav-icon">storage</mat-icon>
+        @if (sidebarOpen) {
+          <span class="label">Stored Procedures</span>
+        }
+      </a>
+      <a routerLink="/execution-logs" routerLinkActive="active" class="nav-item">
+        <mat-icon class="nav-icon">description</mat-icon>
+        @if (sidebarOpen) {
+          <span class="label">Execution Logs</span>
+        }
+      </a>
+      <a routerLink="/dashboard" routerLinkActive="active" class="nav-item">
+        <mat-icon class="nav-icon">dashboard</mat-icon>
+        @if (sidebarOpen) {
+          <span class="label">Dashboard</span>
+        }
+      </a>
+      <a routerLink="/datasets" routerLinkActive="active" class="nav-item">
+        <mat-icon class="nav-icon">dataset</mat-icon>
+        @if (sidebarOpen) {
+          <span class="label">Datasets</span>
+        }
+      </a>
+      
+    </nav>
+    
+  </aside>
+
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

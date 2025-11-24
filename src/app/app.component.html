@@ -1,0 +1,23 @@
+<div class="app-container">
+  <nav class="sidebar">
+    <h2>Menu</h2>
+    <ul>
+      <li>
+        <a routerLink="/procedure" routerLinkActive="active">
+          <span class="icon">⚙️</span>
+          Procedure Builder
+        </a>
+      </li>
+      <li>
+        <a routerLink="/execution-logs" routerLinkActive="active">
+          <span class="icon">📋</span>
+          Execution Logs
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <router-outlet></router-outlet>
+  </main>
+</div>

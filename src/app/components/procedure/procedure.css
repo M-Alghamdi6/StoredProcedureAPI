@@ -1,0 +1,548 @@
+.procedure-builder {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  height: calc(100vh - 40px);
+  background: #f9f9f9;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.procedure-builder .left-panel {
+  flex: 1;
+  max-width: 400px;
+  overflow-y: auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.procedure-builder .left-panel .schema-section,
+.procedure-builder .left-panel .procedure-section,
+.procedure-builder .left-panel .parameters-section {
+  margin-bottom: 25px;
+}
+.procedure-builder .left-panel .schema-section h2,
+.procedure-builder .left-panel .procedure-section h2,
+.procedure-builder .left-panel .parameters-section h2 {
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.procedure-builder .left-panel .schema-section h2 .section-icon,
+.procedure-builder .left-panel .procedure-section h2 .section-icon,
+.procedure-builder .left-panel .parameters-section h2 .section-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: #2196f3;
+}
+.procedure-builder .left-panel .schema-section select,
+.procedure-builder .left-panel .procedure-section select,
+.procedure-builder .left-panel .parameters-section select {
+  width: 100%;
+  padding: 10px;
+  font-size: 1em;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+.procedure-builder .left-panel .schema-section select:focus,
+.procedure-builder .left-panel .procedure-section select:focus,
+.procedure-builder .left-panel .parameters-section select:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+.procedure-builder .left-panel .schema-section .parameter-row,
+.procedure-builder .left-panel .procedure-section .parameter-row,
+.procedure-builder .left-panel .parameters-section .parameter-row {
+  margin-bottom: 15px;
+}
+.procedure-builder .left-panel .schema-section .parameter-row label,
+.procedure-builder .left-panel .procedure-section .parameter-row label,
+.procedure-builder .left-panel .parameters-section .parameter-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #555;
+}
+.procedure-builder .left-panel .schema-section .parameter-row label .param-icon,
+.procedure-builder .left-panel .procedure-section .parameter-row label .param-icon,
+.procedure-builder .left-panel .parameters-section .parameter-row label .param-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #666;
+}
+.procedure-builder .left-panel .schema-section .parameter-row input,
+.procedure-builder .left-panel .procedure-section .parameter-row input,
+.procedure-builder .left-panel .parameters-section .parameter-row input {
+  width: 100%;
+  padding: 10px;
+  font-size: 1em;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.procedure-builder .left-panel .schema-section .parameter-row input:focus,
+.procedure-builder .left-panel .procedure-section .parameter-row input:focus,
+.procedure-builder .left-panel .parameters-section .parameter-row input:focus {
+  outline: none;
+  border-color: #2196f3;
+}
+.procedure-builder .left-panel .schema-section button,
+.procedure-builder .left-panel .procedure-section button,
+.procedure-builder .left-panel .parameters-section button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  font-size: 1em;
+  background: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.procedure-builder .left-panel .schema-section button mat-icon,
+.procedure-builder .left-panel .procedure-section button mat-icon,
+.procedure-builder .left-panel .parameters-section button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+.procedure-builder .left-panel .schema-section button:hover,
+.procedure-builder .left-panel .procedure-section button:hover,
+.procedure-builder .left-panel .parameters-section button:hover {
+  background: #45a049;
+}
+.procedure-builder .right-panel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  max-height: 100%;
+}
+.procedure-builder .right-panel .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  text-align: center;
+  height: 100%;
+}
+.procedure-builder .right-panel .empty-state .empty-icon {
+  font-size: 80px;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 16px;
+  color: #adb5bd;
+}
+.procedure-builder .right-panel .empty-state .empty-title {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 8px 0;
+  color: #495057;
+}
+.procedure-builder .right-panel .empty-state .hint {
+  font-size: 14px;
+  color: #adb5bd;
+  margin: 4px 0;
+  max-width: 400px;
+}
+.procedure-builder .right-panel .results-section,
+.procedure-builder .right-panel .chart-section {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.procedure-builder .right-panel .results-section h2,
+.procedure-builder .right-panel .chart-section h2 {
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.procedure-builder .right-panel .results-section h2 .section-icon,
+.procedure-builder .right-panel .chart-section h2 .section-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: #2196f3;
+}
+.procedure-builder .right-panel .results-section > div:first-of-type,
+.procedure-builder .right-panel .chart-section > div:first-of-type {
+  overflow: auto;
+  max-height: 400px;
+}
+.procedure-builder .right-panel .results-section table,
+.procedure-builder .right-panel .chart-section table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 0.9em;
+}
+.procedure-builder .right-panel .results-section table thead,
+.procedure-builder .right-panel .chart-section table thead {
+  background: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.procedure-builder .right-panel .results-section table thead th,
+.procedure-builder .right-panel .chart-section table thead th {
+  padding: 8px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+}
+.procedure-builder .right-panel .results-section table tbody tr,
+.procedure-builder .right-panel .chart-section table tbody tr {
+  border-bottom: 1px solid #eee;
+}
+.procedure-builder .right-panel .results-section table tbody tr:hover,
+.procedure-builder .right-panel .chart-section table tbody tr:hover {
+  background: #f9f9f9;
+}
+.procedure-builder .right-panel .results-section table tbody tr td,
+.procedure-builder .right-panel .chart-section table tbody tr td {
+  padding: 8px;
+}
+.procedure-builder .right-panel .chart-section .chart-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-shrink: 0;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: #555;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group label .control-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #2196F3;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group select {
+  width: 100%;
+  padding: 8px;
+  font-size: 0.9em;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group select:focus {
+  outline: none;
+  border-color: #2196F3;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group .checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-height: 100px;
+  overflow-y: auto;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group .checkbox-group .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.85em;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .control-group .checkbox-group .checkbox-label input[type=checkbox] {
+  cursor: pointer;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button {
+  padding: 12px 20px;
+  font-size: 0.95em;
+  font-weight: 500;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button:active {
+  transform: translateY(0);
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-build {
+  background: #2196F3;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-build:hover {
+  background: #0b7dda;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-save {
+  background: #28a745;
+  position: relative;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-save:hover {
+  background: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-save:disabled {
+  background: #d4d4d4;
+  color: #9e9e9e;
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+.procedure-builder .right-panel .chart-section .chart-controls .button-group button.btn-save:disabled:hover {
+  background: #d4d4d4;
+  transform: none;
+  box-shadow: none;
+}
+.procedure-builder .right-panel .chart-section canvas {
+  max-width: 100%;
+  max-height: 350px;
+  flex-shrink: 0;
+}
+.procedure-builder .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s;
+}
+.procedure-builder .modal-overlay .modal-content {
+  background: white;
+  border-radius: 8px;
+  max-width: 700px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.3s;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 1;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header h2 {
+  margin: 0;
+  font-size: 1.4em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header h2 .header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #2196f3;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header .close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  transition: background 0.3s;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header .close-btn mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+  color: #999;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header .close-btn:hover {
+  background: #f5f5f5;
+}
+.procedure-builder .modal-overlay .modal-content .modal-header .close-btn:hover mat-icon {
+  color: #333;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body {
+  padding: 20px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row {
+  margin-bottom: 20px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #666;
+  font-size: 1.1em;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row strong .inline-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: #2196f3;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row span {
+  display: block;
+  margin-left: 28px;
+  color: #333;
+  font-size: 1em;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table thead {
+  background: #f5f5f5;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table thead th {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 2px solid #ddd;
+  font-weight: 600;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table tbody tr {
+  border-bottom: 1px solid #eee;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table tbody tr:last-child {
+  border-bottom: none;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-row .preview-table tbody tr td {
+  padding: 10px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-note-box {
+  margin-top: 20px;
+  padding: 15px;
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-note-box .info-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: #1976d2;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-note-box div {
+  flex: 1;
+}
+.procedure-builder .modal-overlay .modal-content .modal-body .preview-note-box div strong {
+  color: #1976d2;
+  font-size: 1em;
+  display: inline;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #eee;
+  position: sticky;
+  bottom: 0;
+  background: white;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: all 0.3s;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button.btn-primary {
+  background: #4caf50;
+  color: white;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button.btn-primary:hover {
+  background: #45a049;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button.btn-secondary {
+  background: #757575;
+  color: white;
+}
+.procedure-builder .modal-overlay .modal-content .modal-footer button.btn-secondary:hover {
+  background: #616161;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}/*# sourceMappingURL=procedure.css.map */
